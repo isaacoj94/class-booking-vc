@@ -119,7 +119,6 @@ model Customer {
   progressReports     ProgressReport[]
   aiInteractions      AIInteraction[]
   creditTransactions  CreditTransaction[]
-  notifications       Notification[]
 
   @@map("customers")
 }
