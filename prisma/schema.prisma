@@ -1,0 +1,288 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+  TEACHER
+}
+
+enum MembershipType {
+  MONTHLY
+  ANNUAL
+  PAY_AS_YOU_GO
+}
+
+enum MembershipStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+enum BookingStatus {
+  CONFIRMED
+  ATTENDED
+  NO_SHOW
+  CANCELLED
+  WAITLIST
+}
+
+enum CheckInMethod {
+  AUTOMATIC
+  MANUAL
+  QR_CODE
+}
+
+enum CheckpointType {
+  FIRST_CLASS
+  THIRD_CLASS
+  TENTH_CLASS
+  MONTH_STREAK
+  CUSTOM
+}
+
+enum ReportType {
+  PROGRESS
+  GOAL_SETTING
+}
+
+enum InteractionType {
+  REMINDER
+  RECOMMENDATION
+  CHECKIN
+  CONGRATULATIONS
+}
+
+enum NotificationType {
+  CLASS_REMINDER
+  CREDIT_LOW
+  MEMBERSHIP_EXPIRING
+  PROGRESS_REPORT
+  CHECKPOINT_ACHIEVED
+}
+
+enum TransactionType {
+  PURCHASE
+  REFUND
+  ADMIN_ADJUSTMENT
+  CLASS_BOOKING
+  EXPIRATION
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  firstName     String    @map("first_name")
+  lastName      String    @map("last_name")
+  phone         String?
+  role          UserRole  @default(CUSTOMER)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  customer          Customer?
+  sentReports       ProgressReport[] @relation("TeacherReports")
+  creditTransactions CreditTransaction[] @relation("AdminTransactions")
+  notifications     Notification[]
+
+  @@map("users")
+}
+
+model Customer {
+  id                     String           @id @default(uuid())
+  userId                 String           @unique @map("user_id")
+  membershipType         MembershipType   @default(MONTHLY) @map("membership_type")
+  membershipStatus       MembershipStatus @default(ACTIVE) @map("membership_status")
+  creditsRemaining       Int              @default(0) @map("credits_remaining")
+  membershipStartDate    DateTime?        @map("membership_start_date")
+  membershipEndDate      DateTime?        @map("membership_end_date")
+  renewalDate            DateTime?        @map("renewal_date")
+  consecutiveWeeksStreak Int              @default(0) @map("consecutive_weeks_streak")
+  totalClassesAttended   Int              @default(0) @map("total_classes_attended")
+  createdAt              DateTime         @default(now()) @map("created_at")
+  updatedAt              DateTime         @updatedAt @map("updated_at")
+
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookings            Booking[]
+  attendance          Attendance[]
+  checkpoints         Checkpoint[]
+  progressReports     ProgressReport[]
+  aiInteractions      AIInteraction[]
+  creditTransactions  CreditTransaction[]
+  notifications       Notification[]
+
+  @@map("customers")
+}
+
+model Class {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  instructorName  String   @map("instructor_name")
+  durationMinutes Int      @map("duration_minutes")
+  maxCapacity     Int      @map("max_capacity")
+  priceCredits    Int      @default(1) @map("price_credits")
+  recurrencePattern Json   @map("recurrence_pattern") // { pattern: "weekly", daysOfWeek: [1,3,5], timezone: "America/New_York" }
+  startTime       String   @map("start_time") // "HH:MM" format
+  endTime         String   @map("end_time") // "HH:MM" format
+  timezone        String
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  instances ClassInstance[]
+
+  @@map("classes")
+}
+
+model ClassInstance {
+  id                  String    @id @default(uuid())
+  classId             String    @map("class_id")
+  scheduledDate       DateTime  @map("scheduled_date")
+  scheduledStartTime  DateTime  @map("scheduled_start_time")
+  scheduledEndTime    DateTime  @map("scheduled_end_time")
+  actualStartTime     DateTime? @map("actual_start_time")
+  actualEndTime       DateTime? @map("actual_end_time")
+  instructorNotes     String?   @map("instructor_notes")
+  status              String    @default("scheduled") // scheduled, completed, cancelled, in-progress
+
+  class    Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+  attendance Attendance[]
+
+  @@index([scheduledDate])
+  @@map("class_instances")
+}
+
+model Booking {
+  id                String        @id @default(uuid())
+  customerId        String        @map("customer_id")
+  classInstanceId   String        @map("class_instance_id")
+  creditsUsed       Int           @map("credits_used")
+  bookingStatus     BookingStatus @default(CONFIRMED) @map("booking_status")
+  bookedAt          DateTime      @default(now()) @map("booked_at")
+  cancelledAt       DateTime?     @map("cancelled_at")
+  cancellationReason String?      @map("cancellation_reason")
+
+  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  classInstance ClassInstance @relation(fields: [classInstanceId], references: [id], onDelete: Cascade)
+  attendance    Attendance?
+
+  @@index([customerId])
+  @@index([classInstanceId])
+  @@map("bookings")
+}
+
+model Attendance {
+  id            String        @id @default(uuid())
+  bookingId     String        @unique @map("booking_id")
+  customerId    String        @map("customer_id")
+  classInstanceId String      @map("class_instance_id")
+  attendedAt    DateTime      @default(now()) @map("attended_at")
+  checkInMethod CheckInMethod @default(MANUAL) @map("check_in_method")
+  notes         String?
+
+  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  classInstance ClassInstance @relation(fields: [classInstanceId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([attendedAt])
+  @@map("attendance")
+}
+
+model Checkpoint {
+  id                      String         @id @default(uuid())
+  customerId              String         @map("customer_id")
+  checkpointType          CheckpointType @map("checkpoint_type")
+  achievedAt              DateTime       @default(now()) @map("achieved_at")
+  classCountAtAchievement Int            @map("class_count_at_achievement")
+  metadata                Json? // { class_name, instructor_notes, etc }
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("checkpoints")
+}
+
+model ProgressReport {
+  id               String     @id @default(uuid())
+  customerId       String     @map("customer_id")
+  teacherId        String     @map("teacher_id")
+  reportType       ReportType @map("report_type")
+  title            String
+  content          String     @db.Text
+  goals            Json       // [{ goal: string, target_date: date, status: string }]
+  sentAt           DateTime   @map("sent_at")
+  aiAnalysis       Json?      @map("ai_analysis") // AI tracking progress against goals
+  createdAt        DateTime   @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  teacher  User     @relation("TeacherReports", fields: [teacherId], references: [id])
+
+  @@index([customerId])
+  @@index([teacherId])
+  @@map("progress_reports")
+}
+
+model AIInteraction {
+  id              String           @id @default(uuid())
+  customerId      String           @map("customer_id")
+  interactionType InteractionType  @map("interaction_type")
+  messageContent  String           @db.Text @map("message_content")
+  aiModelUsed     String           @map("ai_model_used")
+  sentVia         String           @map("sent_via") // email, sms, in-app
+  sentAt          DateTime         @default(now()) @map("sent_at")
+  metadata        Json? // { class_info, context, etc }
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([sentAt])
+  @@map("ai_interactions")
+}
+
+model CreditTransaction {
+  id              String           @id @default(uuid())
+  customerId      String           @map("customer_id")
+  transactionType TransactionType  @map("transaction_type")
+  amount          Int              // can be negative
+  balanceBefore   Int              @map("balance_before")
+  balanceAfter    Int              @map("balance_after")
+  adminId         String?          @map("admin_id")
+  notes           String?
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  admin    User?    @relation("AdminTransactions", fields: [adminId], references: [id])
+
+  @@index([customerId])
+  @@map("credit_transactions")
+}
+
+model Notification {
+  id               String           @id @default(uuid())
+  userId           String           @map("user_id")
+  notificationType NotificationType @map("notification_type")
+  title            String
+  message          String           @db.Text
+  isRead           Boolean          @default(false) @map("is_read")
+  actionUrl        String?          @map("action_url")
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
