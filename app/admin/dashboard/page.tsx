@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import NotificationsCenter from "@/components/NotificationsCenter";
+import Navigation from "@/components/Navigation";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
