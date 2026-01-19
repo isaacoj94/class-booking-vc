@@ -7,6 +7,7 @@ import NotificationsCenter from "@/components/NotificationsCenter";
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState({
     totalCustomers: 0,
     activeMemberships: 0,
@@ -15,30 +16,42 @@ export default function AdminDashboardPage() {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    if (!token) {
-      router.push("/auth/login");
-      return;
-    }
+    try {
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        router.push("/auth/login");
+        return;
+      }
 
-    // Fetch admin stats
-    fetchAdminStats();
+      // Fetch admin stats
+      fetchAdminStats();
+    } catch (err: any) {
+      console.error("Error in useEffect:", err);
+      setError(err.message || "An error occurred");
+      setLoading(false);
+    }
   }, [router]);
 
   const fetchAdminStats = async () => {
     try {
       const token = localStorage.getItem("accessToken");
+      if (!token) {
+        router.push("/auth/login");
+        return;
+      }
+
       const response = await fetch("/api/admin/stats", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch stats");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to fetch stats");
       }
+
+      const data = await response.json();
 
       setStats({
         totalCustomers: data.totalCustomers || 0,
@@ -46,8 +59,10 @@ export default function AdminDashboardPage() {
         classesThisWeek: data.classesThisWeek || 0,
         averageAttendance: data.averageAttendance || 0,
       });
-    } catch (error) {
-      console.error("Error fetching admin stats:", error);
+      setError(null);
+    } catch (err: any) {
+      console.error("Error fetching admin stats:", err);
+      setError(err.message || "Failed to load dashboard data");
       // Keep default stats on error
     } finally {
       setLoading(false);
@@ -62,6 +77,27 @@ export default function AdminDashboardPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
+        <div className="bg-white rounded-lg shadow-card p-8 max-w-md">
+          <h2 className="text-xl font-bold text-primary mb-4">Error</h2>
+          <p className="text-neutral-600 mb-4">{error}</p>
+          <button
+            onClick={() => {
+              setError(null);
+              setLoading(true);
+              fetchAdminStats();
+            }}
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-neutral-50">
       {/* Header */}
@@ -72,7 +108,9 @@ export default function AdminDashboardPage() {
               Admin Dashboard
             </h1>
             <div className="flex items-center gap-4">
-              <NotificationsCenter />
+              <div className="relative">
+                <NotificationsCenter />
+              </div>
               <button
                 onClick={() => {
                   localStorage.removeItem("accessToken");

@@ -20,16 +20,32 @@ export default function NotificationsCenter() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchNotifications();
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
+    try {
+      fetchNotifications();
+      // Poll for new notifications every 30 seconds
+      const interval = setInterval(() => {
+        try {
+          fetchNotifications();
+        } catch (err) {
+          console.error("Error in notification polling:", err);
+        }
+      }, 30000);
+      return () => clearInterval(interval);
+    } catch (err) {
+      console.error("Error setting up notifications:", err);
+      setLoading(false);
+    }
   }, []);
 
   const fetchNotifications = async () => {
     try {
+      if (typeof window === "undefined") return;
+      
       const token = localStorage.getItem("accessToken");
-      if (!token) return;
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
       const response = await fetch("/api/notifications?unread=false", {
         headers: {
@@ -37,11 +53,18 @@ export default function NotificationsCenter() {
         },
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
       setNotifications(data.notifications || []);
       setUnreadCount(data.unreadCount || 0);
     } catch (error) {
       console.error("Error fetching notifications:", error);
+      // Don't show error to user, just fail silently
+      setNotifications([]);
+      setUnreadCount(0);
     } finally {
       setLoading(false);
     }
