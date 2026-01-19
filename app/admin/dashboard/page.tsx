@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function AdminDashboardPage() {
-  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +24,7 @@ export default function AdminDashboardPage() {
       try {
         const token = localStorage.getItem("accessToken");
         if (!token) {
-          router.push("/auth/login");
+          window.location.href = "/auth/login";
           return;
         }
 
@@ -37,6 +35,12 @@ export default function AdminDashboardPage() {
         });
 
         if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem("accessToken");
+            localStorage.removeItem("refreshToken");
+            window.location.href = "/auth/login";
+            return;
+          }
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.error || `HTTP ${response.status}`);
         }
@@ -58,14 +62,10 @@ export default function AdminDashboardPage() {
     };
 
     fetchData();
-  }, [mounted, router]);
+  }, [mounted]);
 
   if (!mounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-neutral-600">Loading...</div>
-      </div>
-    );
+    return null;
   }
 
   if (loading) {
@@ -84,11 +84,7 @@ export default function AdminDashboardPage() {
           <p className="text-neutral-600 mb-4">{error}</p>
           <div className="space-y-2">
             <button
-              onClick={() => {
-                setError(null);
-                setLoading(true);
-                window.location.reload();
-              }}
+              onClick={() => window.location.reload()}
               className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark"
             >
               Reload Page
@@ -97,7 +93,7 @@ export default function AdminDashboardPage() {
               onClick={() => {
                 localStorage.removeItem("accessToken");
                 localStorage.removeItem("refreshToken");
-                router.push("/auth/login");
+                window.location.href = "/auth/login";
               }}
               className="w-full px-4 py-2 bg-neutral-200 text-neutral-900 rounded-lg hover:bg-neutral-300"
             >
@@ -119,7 +115,7 @@ export default function AdminDashboardPage() {
               onClick={() => {
                 localStorage.removeItem("accessToken");
                 localStorage.removeItem("refreshToken");
-                router.push("/auth/login");
+                window.location.href = "/auth/login";
               }}
               className="text-neutral-600 hover:text-neutral-900 text-sm"
             >
