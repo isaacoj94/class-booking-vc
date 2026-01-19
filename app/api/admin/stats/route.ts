@@ -10,7 +10,13 @@ export async function GET(request: NextRequest) {
     return authResult;
   }
 
-  // TODO: Check admin role
+  // Check admin role
+  if (authResult.user.role !== 'ADMIN') {
+    return NextResponse.json(
+      { error: 'Forbidden: Admin access required' },
+      { status: 403 }
+    );
+  }
 
   try {
     // Get date range for "this week"
