@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import NotificationsCenter from "@/components/NotificationsCenter";
 import Navigation from "@/components/Navigation";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState({
@@ -17,6 +19,12 @@ export default function AdminDashboardPage() {
   });
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
     try {
       const token = localStorage.getItem("accessToken");
       if (!token) {
@@ -31,10 +39,13 @@ export default function AdminDashboardPage() {
       setError(err.message || "An error occurred");
       setLoading(false);
     }
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted]);
 
   const fetchAdminStats = async () => {
     try {
+      if (typeof window === "undefined") return;
+
       const token = localStorage.getItem("accessToken");
       if (!token) {
         router.push("/auth/login");
@@ -70,7 +81,7 @@ export default function AdminDashboardPage() {
     }
   };
 
-  if (loading) {
+  if (!mounted || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-neutral-600">Loading...</div>
@@ -100,34 +111,39 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      {/* Header */}
-      <header className="bg-white border-b border-neutral-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="font-heading text-2xl font-bold text-primary">
-              Admin Dashboard
-            </h1>
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <NotificationsCenter />
+    <ErrorBoundary>
+      <div className="min-h-screen bg-neutral-50">
+        {/* Header */}
+        <header className="bg-white border-b border-neutral-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex justify-between items-center">
+              <h1 className="font-heading text-2xl font-bold text-primary">
+                Admin Dashboard
+              </h1>
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <ErrorBoundary>
+                    <NotificationsCenter />
+                  </ErrorBoundary>
+                </div>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem("accessToken");
+                    localStorage.removeItem("refreshToken");
+                    router.push("/auth/login");
+                  }}
+                  className="text-neutral-600 hover:text-neutral-900 text-sm"
+                >
+                  Sign out
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  localStorage.removeItem("accessToken");
-                  localStorage.removeItem("refreshToken");
-                  router.push("/auth/login");
-                }}
-                className="text-neutral-600 hover:text-neutral-900 text-sm"
-              >
-                Sign out
-              </button>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <Navigation role="admin" />
+        <ErrorBoundary>
+          <Navigation role="admin" />
+        </ErrorBoundary>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Row */}
@@ -248,5 +264,6 @@ export default function AdminDashboardPage() {
         </div>
       </main>
     </div>
+    </ErrorBoundary>
   );
 }
